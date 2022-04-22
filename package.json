@@ -5,7 +5,17 @@
   "main": "index.js",
   "author": "Leonz Chang <bellerophon00530@gmail.com>",
   "license": "MIT",
+  "scripts": {
+    "start": "ts-node"
+  },
   "dependencies": {
-    "@openzeppelin/contracts": "^4.5.0"
+    "@openzeppelin/contracts": "^4.5.0",
+    "dotenv": "^16.0.0",
+    "ethers": "^5.6.4"
+  },
+  "devDependencies": {
+    "@types/node": "^17.0.25",
+    "ts-node": "^10.7.0",
+    "typescript": "^4.6.3"
   }
 }
