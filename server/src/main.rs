@@ -1,11 +1,11 @@
 mod contract;
 mod utils;
 use contract::EthPriceOracle;
-use dotenv::dotenv;
+use dotenv_codegen::dotenv;
 use ethers::{prelude::Address, providers::Middleware};
-use eyre::Result;
-use std::env;
+use log::{info, warn};
 use std::{str::FromStr, sync::Arc};
+use tokio::time::{sleep, Duration};
 use utils::create_signer;
 
 #[derive(serde::Deserialize, Debug)]
@@ -14,76 +14,90 @@ struct Price {
     price: String,
 }
 
+// TODO: error handling
 #[tokio::main]
-async fn main() -> Result<()> {
-    // configure env
-    dotenv().ok();
+async fn main() {
+    // configure env logger
+    env_logger::init();
 
-    // oracle signer
-    let oracle_signer = create_signer(
-        env::var("RPC_URL").unwrap(),
-        env::var("ORACLE_SERVICE_PRIVATE_KEY").unwrap(),
-    )
-    .await
-    .expect("can not create signer!");
+    info!("oracle service started...");
+    // create oracle signer
+    let oracle_signer = create_signer(dotenv!("RPC_URL"), dotenv!("ORACLE_SERVICE_PRIVATE_KEY"))
+        .await
+        .expect("can not create signer!");
 
-    // contract address
-    let caller_contract_address = Address::from_str(env::var("CALLER_CONTRACT_ADDRESS").unwrap())
-        .expect("Address decoding failed");
-    let eth_price_oracle_address = Address::from_str(env::var("ORACLE_CONTRACT_ADDRESS").unwrap())
-        .expect("Address decoding failed");
+    // initial contract address
+    let caller_contract_address =
+        Address::from_str(dotenv!("CALLER_CONTRACT_ADDRESS")).expect("Address decoding failed");
+    let eth_price_oracle_address =
+        Address::from_str(dotenv!("ORACLE_CONTRACT_ADDRESS")).expect("Address decoding failed");
 
-    // get current block
-    let current_blocks = oracle_signer.get_block_number();
+    // initial header
+    let mut fetch_from_blocks = oracle_signer
+        .get_block_number()
+        .await
+        .expect("can not get the block number");
 
     // get contract provider with signer
     let arc_signer = Arc::new(oracle_signer.clone());
-    let oracle_provider = EthPriceOracle::new(eth_price_oracle_address, arc_signer.clone());
+    let oracle_provider = EthPriceOracle::new(eth_price_oracle_address, arc_signer);
 
-    // listen oracle event
-    let logs = oracle_provider
-        .get_latest_eth_price_event_filter()
-        .from_block(18665486)
-        .query()
-        .await?;
+    // HACK: handle event need to be refactored in a better way
+    // handle update event
+    info!("Handle event...");
+    loop {
+        // listen oracle event
+        let requests = oracle_provider
+            .get_latest_eth_price_event_filter()
+            .from_block(fetch_from_blocks)
+            .query()
+            .await
+            .expect("fail to get latest ETH price event");
 
-    println!("logs: {:?}", logs);
+        //record last time fechted blocks number
+        fetch_from_blocks = oracle_signer
+            .get_block_number()
+            .await
+            .expect("can not get the block number");
 
-    // fetch api and get ETHUSDT
-    let request_url = format!(env::var("BINANCE_API").unwrap());
-    let response = reqwest::get(&request_url).await?;
-    let data: Vec<Price> = response.json().await?;
-    let rate = data
-        .into_iter()
-        .filter(|token| token.symbol == env::var("TOKEN_SYMBOL").unwrap())
-        .collect::<Vec<Price>>();
+        info!("Requests in queue: {:?}", requests);
 
-    let price = rate[0].price.parse::<f32>()?.round() as i32;
-    // .unwrap_or_else(|_| U256::zero());
+        // if there is any event
+        if !requests.is_empty() {
+            // fetch api and get ETHUSDT
+            let request_url = dotenv!("BINANCE_API").to_string();
+            let response = reqwest::get(&request_url)
+                .await
+                .expect("can not fetch BINANCE API");
+            let data: Vec<Price> = response.json().await.unwrap();
+            let rate = data
+                .into_iter()
+                .filter(|token| token.symbol == dotenv!("TOKEN_SYMBOL"))
+                .collect::<Vec<Price>>();
 
-    println!("prices: {:?}", price);
+            let price = rate[0]
+                .price
+                .parse::<f32>()
+                .expect("price format parse error")
+                .round() as i32;
 
-    println!("who am I: {:?}", oracle_signer.address());
-    // update Oracle ETHUSDT price
-    let res = oracle_provider
-        .set_latest_eth_price(price.into(), caller_contract_address, logs[0].id)
-        .legacy()
-        .send()
-        .await?
-        .await?;
-    println!("prices: {:?}", res);
-    Ok(())
+            info!("ETHUSDT price: {}", price);
+
+            // update Oracle ETHUSDT price
+            for request in requests {
+                oracle_provider
+                    .set_latest_eth_price(price.into(), caller_contract_address, request.id)
+                    .legacy()
+                    .send()
+                    .await
+                    .expect("can not set latest ETH price");
+
+                info!("id {} resolved.", request.id);
+            }
+        } else {
+            warn!("No requests in queue...");
+        }
+        // wait for 10 sec after updating price to smart contract
+        sleep(Duration::from_millis(10000)).await;
+    }
 }
-
-// loop {
-//     delay_for(Duration::from_millis(1000)).await;
-//     call_me();
-// }
-
-// // create tx
-// let tx = TransactionRequest::new().to(to).value(1000);
-// println!("tx: {:?}", tx);
-
-// // send tx
-// let tx_hash = signer.send_transaction(tx, None).await?.await?;
-// println!("tx_hash: {:?}", tx_hash);

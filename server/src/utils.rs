@@ -6,6 +6,7 @@ use ethers::{
 };
 use std::str::FromStr;
 
+// TODO: error handling
 pub async fn create_signer(
     rpc_url: &str,
     private_key: &str,
@@ -14,7 +15,6 @@ pub async fn create_signer(
         Provider::<Http>::try_from(rpc_url).map_err(|_| "could not instantiate HTTP provider")?;
 
     // get chain ID
-    // error handling
     let chain_id = provider
         .get_chainid()
         .await

@@ -1,12 +1,14 @@
 {
   "name": "ETHUSDT-price-Oracle",
   "version": "1.0.0",
-  "description": "an oracle example",
-  "main": "index.js",
-  "author": "Leonz Chang <bellerophon00530@gmail.com>",
+  "repository": "https://github.com/leonzchang/ETHUSDT-price-Oracle.git",
+  "author": "leonzchang <bellerophon00530@gmail.com>",
   "license": "MIT",
   "scripts": {
-    "start": "ts-node"
+    "start": "ts-node",
+    "lint": "eslint . --ext ts --fix",
+    "format": "prettier --write \"**/*.ts\"",
+    "prepare": "husky install"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^4.5.0",
@@ -16,6 +18,21 @@
   "devDependencies": {
     "@types/node": "^17.0.25",
     "ts-node": "^10.7.0",
-    "typescript": "^4.6.3"
+    "typescript": "^4.6.3",
+    "@typescript-eslint/eslint-plugin": "^5.21.0",
+    "@typescript-eslint/parser": "^5.21.0",
+    "eslint": "^8.14.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-prettier": "^4.0.0",
+    "eslint-plugin-simple-import-sort": "^7.0.0",
+    "husky": "^7.0.4",
+    "lint-staged": "^12.4.0",
+    "prettier": "^2.6.2"
+  },
+  "lint-staged": {
+    "**/*.ts": [
+      "yarn format",
+      "yarn lint"
+    ]
   }
 }
