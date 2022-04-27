@@ -10,36 +10,39 @@ Blockchain oracles are third-party services that provide smart contracts with ex
 
 
 # Getting Started
+
+## Deploy smart contract
+- Make sure caller and oracle smart contracts are already deployed on the chain.
 ## Environment variables
-- configure env for `./client`
+- Configure `.env` for `./client`
 ```sh
 cp .env-sample .env
 ```
 
-- configure env for `./server`
+- Configure `.env` in `./server`
 ```sh
 cd ./server
 cp .env-sample .env
 ```
-Note: configure your environment variables in the `.env` file before compile.
-
-## server
-- compile server binary
+## Server
+- Compile server binary
 ```sh
+cd ./server
 cargo build --release
 ```
 
-- run the service
+- run the oracle service
 ```sh
+cd ./server
 RUST_LOG=info ./target/release/oracle-service
 ```
 
-## client
-- run `updateEthPrice` and listen event `PriceUpdatedEvent`
+## Client
+- install dependency
 ```sh
-# install dependency
 yarn
-
-# run client call and listen event
+```
+- Call `updateEthPrice` function and listen `PriceUpdatedEvent` event
+```sh
 yarn start client/src/caller-core.ts
 ```
